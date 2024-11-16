@@ -110,10 +110,10 @@ subst x m (Lam y n) = Lam y (substUnder x m y n)
 subst x m (App n1 n2) = App (subst x m n1) (subst x m n2)
 subst x m n = undefined
 
-subst x m (Store n) = Store (subst x m n) --Store
-subst x m Recall = Recall --Recall
-subst x m (Throw n) = Throw (subst x m n) --Throw
-subst x m (Catch n1 y n2) = Catch (subst x m n1) y (substUnder x m y n2) --Catch
+subst x m (Catch e1 y e2) = Catch (subst x m e1) y (substUnder x m y e2)
+subst x m (Store e) = Store (subst x m e)
+subst x m Recall = Recall
+subst x m (Throw e) = Throw (subst x m e)
 
 {-------------------------------------------------------------------------------
 
@@ -207,33 +207,23 @@ bubble; this won't *just* be `Throw` and `Catch.
 -------------------------------------------------------------------------------}
 
 smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
-smallStep (Const i, acc) = Nothing -- Constants
-smallStep (Plus (Const i) (Const j), acc) = Just (Const (i + j), acc) --Plus
-smallStep (Plus e1 e2, acc)
-  | isValue e1 = case smallStep (e2, acc) of
-      Just (e2', acc') -> Just (Plus e1 e2', acc')
-      Nothing -> Nothing
-  | otherwise = case smallStep (e1, acc) of
-      Just (e1', acc') -> Just (Plus e1' e2, acc')
-      Nothing -> Nothing
-smallStep (Throw v, acc) --Throw
-  | isValue v = Nothing
-  | otherwise = case smallStep (v, acc) of
-      Just (v', acc') -> Just (Throw v', acc')
-smallStep (Catch m y n, acc) -- Catch
-  | isValue m = Just (m, acc)
-  | otherwise = case m of
-      Throw v -> Just (subst y v n, acc)
-      _ -> case smallStep (m, acc) of
-        Just (m', acc') -> Just (Catch m' y n, acc')
-        Nothing -> Nothing
-smallStep (Store m, acc)
-  | isValue m = Just (Const 0, m) -- store
-  | otherwise = case smallStep (m, acc) of
-      Just (m', acc') -> Just (Store m', acc')
-      Nothing -> Nothing
-smallStep (Recall, acc) = Just (acc, acc) --recall
-smallStep (App (Lam x body) arg, acc) --Application
+-- Constants do not reduce further
+smallStep (Const i, acc) = Nothing
+
+-- Variables are not reduced directly
+smallStep (Var x, acc) = Nothing
+
+-- Plus: left-to-right call-by-value
+smallStep (Plus (Const i) (Const j), acc) = Just (Const (i + j), acc)
+smallStep (Plus (Const i) e2, acc) = case smallStep (e2, acc) of
+    Just (e2', acc') -> Just (Plus (Const i) e2', acc')
+    Nothing -> Nothing
+smallStep (Plus e1 e2, acc) = case smallStep (e1, acc) of
+    Just (e1', acc') -> Just (Plus e1' e2, acc')
+    Nothing -> Nothing
+
+-- Application: left-to-right, call-by-value
+smallStep (App (Lam x body) arg, acc)
   | isValue arg = Just (subst x arg body, acc)
   | otherwise = case smallStep (arg, acc) of
       Just (arg', acc') -> Just (App (Lam x body) arg', acc')
@@ -242,7 +232,33 @@ smallStep (App f arg, acc)
   | not (isValue f) = case smallStep (f, acc) of
       Just (f', acc') -> Just (App f' arg, acc')
       Nothing -> Nothing
-smallStep _ = Nothing --Outside case
+
+-- Lambda functions do not reduce further on their own
+smallStep (Lam x body, acc) = Nothing
+
+-- Accumulator: Store updates accumulator, Recall retrieves it
+smallStep (Store e, acc)
+  | isValue e = Just (Const 0, e) -- `Const 0` represents a unit value after storing
+  | otherwise = case smallStep (e, acc) of
+      Just (e', acc') -> Just (Store e', acc')
+      Nothing -> Nothing
+smallStep (Recall, acc) = Just (acc, acc)
+
+-- Throw: evaluates the thrown value before bubbling
+smallStep (Throw v, acc)
+  | isValue v = Nothing -- Exception fully thrown, ready to bubble
+  | otherwise = case smallStep (v, acc) of
+      Just (v', acc') -> Just (Throw v', acc')
+      Nothing -> Nothing
+
+-- Catch: evaluates `m`, handles value or exception
+smallStep (Catch m y n, acc)
+  | isValue m = Just (m, acc) -- If `m` is a value, return it
+  | otherwise = case m of
+      Throw v -> Just (subst y v n, acc) -- Handle exception
+      _ -> case smallStep (m, acc) of
+          Just (m', acc') -> Just (Catch m' y n, acc')
+          Nothing -> Nothing
 
 steps :: (Expr, Expr) -> [(Expr, Expr)]
 steps s = case smallStep s of
