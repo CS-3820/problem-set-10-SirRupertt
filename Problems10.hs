@@ -213,14 +213,17 @@ smallStep (Const i, acc) = Nothing
 -- Variables are not reduced directly
 smallStep (Var x, acc) = Nothing
 
--- Plus: left-to-right call-by-value
-smallStep (Plus (Const i) (Const j), acc) = Just (Const (i + j), acc)
-smallStep (Plus (Const i) e2, acc) = case smallStep (e2, acc) of
-    Just (e2', acc') -> Just (Plus (Const i) e2', acc')
-    Nothing -> Nothing
-smallStep (Plus e1 e2, acc) = case smallStep (e1, acc) of
-    Just (e1', acc') -> Just (Plus e1' e2, acc')
-    Nothing -> Nothing
+-- Plus:
+smallStep (Plus e1 e2, acc)
+  | isValue e1 && isValue e2 = Just (Const (eval e1 + eval e2), acc)
+  | isValue e1 && isThrow e1 = Just (e1, acc)
+  | not (isValue e1) = case smallStep (e1, acc) of
+      Just (e1', acc') -> Just (Plus e1' e2, acc')
+      Nothing -> Nothing
+  | isValue e2 && isThrow e2 = Just (e2, acc)
+  | otherwise = case smallStep (e2, acc) of
+      Just (e2', acc') -> Just (Plus e1 e2', acc')
+      Nothing -> Nothing
 
 -- Application: left-to-right, call-by-value
 smallStep (App (Lam x body) arg, acc)
