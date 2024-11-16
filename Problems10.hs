@@ -226,11 +226,11 @@ smallStep (Var x, acc) = Nothing
 -- Plus:
 smallStep (Plus e1 e2, acc)
   | isValue e1 && isValue e2 = Just (Const (eval e1 + eval e2), acc)
-  | isValue e1 && isThrow e1 = Just (e1, acc)
+  | isThrow e1 = Just (e1, acc) -- Exception bubbles
   | not (isValue e1) = case smallStep (e1, acc) of
       Just (e1', acc') -> Just (Plus e1' e2, acc')
       Nothing -> Nothing
-  | isValue e2 && isThrow e2 = Just (e2, acc)
+  | isThrow e2 = Just (e2, acc)
   | otherwise = case smallStep (e2, acc) of
       Just (e2', acc') -> Just (Plus e1 e2', acc')
       Nothing -> Nothing
@@ -238,6 +238,7 @@ smallStep (Plus e1 e2, acc)
 -- Application: left-to-right, call-by-value
 smallStep (App (Lam x body) arg, acc)
   | isValue arg = Just (subst x arg body, acc)
+  | isThrow arg = Just (arg, acc) -- Exception bubbles in argument
   | otherwise = case smallStep (arg, acc) of
       Just (arg', acc') -> Just (App (Lam x body) arg', acc')
       Nothing -> Nothing
@@ -245,13 +246,14 @@ smallStep (App f arg, acc)
   | not (isValue f) = case smallStep (f, acc) of
       Just (f', acc') -> Just (App f' arg, acc')
       Nothing -> Nothing
+  | isThrow f = Just (f, acc)
 
 -- Lambda functions do not reduce further on their own
 smallStep (Lam x body, acc) = Nothing
 
 -- Accumulator: Store updates accumulator, Recall retrieves it
 smallStep (Store e, acc)
-  | isValue e = Just (Const 0, e) -- `Const 0` represents a unit value after storing
+  | isValue e = Just (e, e) -- Store the value in the accumulator
   | otherwise = case smallStep (e, acc) of
       Just (e', acc') -> Just (Store e', acc')
       Nothing -> Nothing
@@ -267,11 +269,12 @@ smallStep (Throw v, acc)
 -- Catch: evaluates `m`, handles value or exception
 smallStep (Catch m y n, acc)
   | isValue m = Just (m, acc) -- If `m` is a value, return it
-  | otherwise = case m of
+  | isThrow m = case m of
       Throw v -> Just (subst y v n, acc) -- Handle exception
-      _ -> case smallStep (m, acc) of
-          Just (m', acc') -> Just (Catch m' y n, acc')
-          Nothing -> Nothing
+      _       -> Nothing
+  | otherwise = case smallStep (m, acc) of
+      Just (m', acc') -> Just (Catch m' y n, acc')
+      Nothing -> Nothing
 
 steps :: (Expr, Expr) -> [(Expr, Expr)]
 steps s = case smallStep s of
