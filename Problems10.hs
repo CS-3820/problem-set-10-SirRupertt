@@ -255,7 +255,7 @@ smallStep (Lam x body, acc) = Nothing
 smallStep (Store expr, acc)
   | isValue expr = Just (expr, expr) -- Update accumulator and return the value
   | isThrow expr = case expr of
-      Throw (Store v) -> Just (Throw v, Const (eval v)) -- Update accumulator with evaluated value
+      Throw (Store v) -> Just (Store (Throw v), acc) -- Bubble exception after processing inner Store
       _               -> Just (expr, acc)
   | otherwise = case smallStep (expr, acc) of
       Just (expr', acc') -> Just (Store expr', acc') -- Accumulator may update during steps
