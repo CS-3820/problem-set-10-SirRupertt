@@ -112,8 +112,8 @@ subst x m (Store n) = Store (subst x m n) -- Substitute into the stored expressi
 subst _ _ Recall = Recall -- No substitution for `Recall`
 subst x m (Throw n) = Throw (subst x m n) -- Substitute into the thrown expression
 subst x m (Catch n1 y n2)
-  | x == y    = Catch (subst x m n1) y n2 -- Do not substitute into if `y` shadows `x`
-  | otherwise = Catch (subst x m n1) y (substUnder x m y n2) -- Substitute in both parts otherwise
+  | x == y    = Catch (subst x m n1) y n2 -- Do not substitute if `y` shadows `x`
+  | otherwise = Catch (subst x m n1) y (substUnder x m y n2) -- Substitute otherwise
 
 {-------------------------------------------------------------------------------
 
