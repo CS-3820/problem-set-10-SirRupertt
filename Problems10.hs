@@ -95,6 +95,11 @@ be replaced by the substitution?
 
 -------------------------------------------------------------------------------}
 
+-- Utility to check if an expression is a `Throw`
+isThrow :: Expr -> Bool
+isThrow (Throw _) = True
+isThrow _         = False
+
 substUnder :: String -> Expr -> String -> Expr -> Expr
 substUnder x m y n 
   | x == y = n
@@ -205,6 +210,11 @@ Lecture 12.  But be sure to handle *all* the cases where exceptions need to
 bubble; this won't *just* be `Throw` and `Catch.
 
 -------------------------------------------------------------------------------}
+
+-- Evaluate expressions to integers
+eval :: Expr -> Int
+eval (Const i) = i
+eval _ = error "Non-constant expression in eval"
 
 smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
 -- Constants do not reduce further
