@@ -226,11 +226,11 @@ smallStep (Var x, acc) = Nothing
 -- Plus:
 smallStep (Plus e1 e2, acc)
   | isValue e1 && isValue e2 = Just (Const (eval e1 + eval e2), acc)
-  | isThrow e1 = Just (e1, acc) -- Exception bubbles
+  | isValue e1 && e2 == Recall = Just (Plus e1 acc, acc) -- Handle Recall in right operand
+  | e1 == Recall && isValue e2 = Just (Plus acc e2, acc) -- Handle Recall in left operand
   | not (isValue e1) = case smallStep (e1, acc) of
       Just (e1', acc') -> Just (Plus e1' e2, acc')
       Nothing -> Nothing
-  | isThrow e2 = Just (e2, acc)
   | otherwise = case smallStep (e2, acc) of
       Just (e2', acc') -> Just (Plus e1 e2', acc')
       Nothing -> Nothing
@@ -253,12 +253,11 @@ smallStep (Lam x body, acc) = Nothing
 
 -- Accumulator: Store updates accumulator, Recall retrieves it
 smallStep (Store expr, acc)
-  | isValue expr = Just (Const 0, expr) -- Update the accumulator with the value and return `Const 0`
-  | isThrow expr = Just (expr, acc)    -- Bubble the exception without updating the accumulator
+  | isValue expr = Just (expr, expr) -- Update the accumulator with the value and return the stored value
+  | isThrow expr = Just (expr, acc)  -- Bubble exceptions without changing the accumulator
   | otherwise = case smallStep (expr, acc) of
-      Just (expr', acc') -> Just (Store expr', acc')
+      Just (expr', acc') -> Just (Store expr', acc) -- Evaluate the expression before storing
       Nothing -> Nothing
-smallStep (Recall, acc) = Just (acc, acc)
 
 -- Throw: evaluates the thrown value before bubbling
 smallStep (Throw v, acc)
