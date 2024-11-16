@@ -217,7 +217,7 @@ eval (Const i) = i
 eval _ = error "Non-constant expression in eval"
 
 smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
--- Constants do not reduce further
+--- Constants do not reduce further
 smallStep (Const i, acc) = Nothing
 
 -- Variables are not reduced directly
@@ -256,13 +256,13 @@ smallStep (Store expr, acc)
   | isValue expr = Just (expr, expr) -- Update accumulator and return the value
   | isThrow expr = Just (expr, acc)  -- Exception bubbles without updating accumulator
   | otherwise = case smallStep (expr, acc) of
-      Just (expr', acc') -> Just (Store expr', acc) -- Keep accumulator unchanged during evaluation
+      Just (expr', acc') -> Just (Store expr', acc') -- Accumulator may update during steps
       Nothing -> Nothing
+smallStep (Recall, acc) = Just (acc, acc) -- Recall returns the current accumulator
 
 -- Throw: evaluates the thrown value before bubbling
 smallStep (Throw v, acc)
   | isValue v = Nothing -- Exception fully thrown, ready to bubble
-  | isThrow v = Just (v, acc) -- Handle nested exceptions
   | otherwise = case smallStep (v, acc) of
       Just (v', acc') -> Just (Throw v', acc')
       Nothing -> Nothing
@@ -276,6 +276,9 @@ smallStep (Catch m y n, acc)
   | otherwise = case smallStep (m, acc) of
       Just (m', acc') -> Just (Catch m' y n, acc')
       Nothing -> Nothing
+
+-- Ensure all cases are handled
+smallStep _ = Nothing
 
 steps :: (Expr, Expr) -> [(Expr, Expr)]
 steps s = case smallStep s of
