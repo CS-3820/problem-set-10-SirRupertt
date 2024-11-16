@@ -243,10 +243,10 @@ smallStep (App (Lam x body) arg, acc)
       Just (arg', acc') -> Just (App (Lam x body) arg', acc')
       Nothing -> Nothing
 smallStep (App f arg, acc)
+  | isThrow f = Just (f, acc) -- Exception bubbles in function
   | not (isValue f) = case smallStep (f, acc) of
       Just (f', acc') -> Just (App f' arg, acc')
       Nothing -> Nothing
-  | isThrow f = Just (f, acc)
 
 -- Lambda functions do not reduce further on their own
 smallStep (Lam x body, acc) = Nothing
@@ -262,11 +262,12 @@ smallStep (Recall, acc) = Just (acc, acc)
 
 -- Throw: evaluates the thrown value before bubbling
 smallStep (Throw v, acc)
-  | isValue v = Nothing -- Exception fully thrown, ready to bubble
-  | isThrow v = Just (v, acc) -- Handle nested exceptions
-  | otherwise = case smallStep (v, acc) of
-      Just (v', acc') -> Just (Throw v', acc')
+  | isValue e = Just (e, e) -- Store the value in the accumulator
+  | isThrow e = Just (e, acc) -- Exception bubbles
+  | otherwise = case smallStep (e, acc) of
+      Just (e', acc') -> Just (Store e', acc')
       Nothing -> Nothing
+smallStep (Recall, acc) = Just (acc, acc)
 
 -- Catch: evaluates `m`, handles value or exception
 smallStep (Catch m y n, acc)
