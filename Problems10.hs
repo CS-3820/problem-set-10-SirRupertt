@@ -253,12 +253,11 @@ smallStep (Lam x body, acc) = Nothing
 
 -- Accumulator: Store updates accumulator, Recall retrieves it
 smallStep (Store e, acc)
-  | isValue e = Just (e, e) -- Store the value in the accumulator
-  | isThrow e = Just (e, acc) -- Exception bubbles
+  | isValue e = Just (Const 0, e) -- Return `Const 0` as a unit value and update accumulator
+  | isThrow e = Just (e, acc) -- Exception bubbles without updating accumulator
   | otherwise = case smallStep (e, acc) of
       Just (e', acc') -> Just (Store e', acc')
       Nothing -> Nothing
-smallStep (Recall, acc) = Just (acc, acc)
 
 -- Throw: evaluates the thrown value before bubbling
 smallStep (Throw v, acc)
