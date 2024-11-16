@@ -254,7 +254,9 @@ smallStep (Lam x body, acc) = Nothing
 -- Accumulator: Store updates accumulator, Recall retrieves it
 smallStep (Store expr, acc)
   | isValue expr = Just (expr, expr) -- Update accumulator and return the value
-  | isThrow expr = Just (expr, acc)  -- Exception bubbles without updating accumulator
+  | isThrow expr = case expr of
+      Throw (Store v) -> Just (Throw v, eval v) -- Update accumulator before bubbling exception
+      _               -> Just (expr, acc)
   | otherwise = case smallStep (expr, acc) of
       Just (expr', acc') -> Just (Store expr', acc') -- Accumulator may update during steps
       Nothing -> Nothing
@@ -263,6 +265,7 @@ smallStep (Recall, acc) = Just (acc, acc) -- Recall returns the current accumula
 -- Throw: evaluates the thrown value before bubbling
 smallStep (Throw v, acc)
   | isValue v = Nothing -- Exception fully thrown, ready to bubble
+  | isThrow v = Just (v, acc) -- Reduce nested `Throw`
   | otherwise = case smallStep (v, acc) of
       Just (v', acc') -> Just (Throw v', acc')
       Nothing -> Nothing
